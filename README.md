@@ -63,7 +63,7 @@ When a flash write is interrupted mid-way on NOR flash memory, the sector is lef
    - **Tier 3 (Application Region)**: Up to 352–480 KB (Sectors 2–7).
 2. **Block-Level Bound SHAKE-256 Merkle Tree**:
    - Each 4 KB leaf binds both block index and version:
-     $$\text{Leaf}_i = \text{SHAKE-256}(\text{Block}_i \mathbin{\Vert} \text{block\_id (2B LE)} \mathbin{\Vert} \text{version (4B LE)})$$
+     $$\text{Leaf}_i = \text{SHAKE-256}(\text{Block}_i \mathbin{\Vert} \text{LE16}(i) \mathbin{\Vert} \text{LE32}(\text{version}))$$
    - Prevents block-swap, block-omission, and cross-version replay attacks.
 3. **Targeted Sector Retransmission**:
    - Bootloader scans flash on reboot following an interruption. Erased or mismatched blocks generate a compact `MSG_BLOCK_REQ` payload containing only missing block IDs.
