@@ -7,7 +7,7 @@
 
 This repository contains the complete firmware, server toolchain, evaluation suites, and empirical dataset for a **three-tier cryptographic bootloader architecture** deployed on bare-metal ARM Cortex-M4 microcontrollers. 
 
-By constructing a **SHAKE-256 Merkle tree** over 4 KB flash blocks at the OEM server and validating per-block proofs inline during Over-the-Air (OTA) transmission, the ECU detects corrupted or incomplete sectors on reboot and requests **only the corrupted blocks** (`MSG_BLOCK_REQ`). This eliminates the classic requirement of retransmitting 100% of the firmware image, slashing recovery bandwidth by up to **92.2%** (at $k=10$ corrupted blocks) and preventing device bricking in single-slot automotive ECU topologies.
+By constructing a **SHAKE-256 Merkle tree** over 4 KB flash blocks at the OEM server and validating per-block proofs inline during Over-the-Air (OTA) transmission, the ECU detects corrupted or incomplete sectors on reboot and requests **only the corrupted blocks** (`MSG_BLOCK_REQ`). This eliminates the classic requirement of retransmitting 100% of the firmware image, slashing recovery bandwidth by up to **92.2%** (at k=10 corrupted blocks) and preventing device bricking in single-slot automotive ECU topologies.
 
 ---
 
@@ -40,11 +40,11 @@ Over-the-Air (OTA) updates on automotive Electronic Control Units (ECUs) are exp
 | Metric / Dimension | Uptane Standard [2] | MT-SOTA (2023) [3] | MQTree (2024) [4] | **This Work** |
 | :--- | :--- | :--- | :--- | :--- |
 | **Hash Algorithm** | SHA-256 | SHA2-256 (HW-accel) | SHA-256 | **SHAKE-256 (SW)** |
-| **Verification Granularity** | Full Image | Cluster ($\ge$16 KB) | Firmware File | **4 KB Sector** |
+| **Verification Granularity** | Full Image | Cluster (≥16 KB) | Firmware File | **4 KB Sector** |
 | **Partial Write Recovery** | ❌ None | ❌ None | ❌ None | **✅ Targeted (`MSG_BLOCK_REQ`)** |
-| **Recovery Wire Bandwidth** | 100% (Full Re-DL) | 100% (Full Re-DL) | 100% (Full Re-DL) | **$k/n \times 100\%$ ($92.2\%$ saved @ $k=10$)** |
+| **Recovery Wire Bandwidth** | 100% (Full Re-DL) | 100% (Full Re-DL) | 100% (Full Re-DL) | **k/n × 100% (92.2% saved @ k=10)** |
 | **Target Platform** | Linux / Gateway SoC | AURIX TC49x (400 MHz) | Jetson Orin (Gateway) | **Bare-Metal Cortex-M4 (180 MHz)** |
-| **Flash Overhead** | Dual-Slot A/B ($2\times$) | Unspecified | File-based | **32 KB total system overhead** |
+| **Flash Overhead** | Dual-Slot A/B (2×) | Unspecified | File-based | **32 KB total system overhead** |
 | **Hardware Anti-Rollback** | Software State | ❌ None | ❌ None | **Hardware OTP Monotonic Counter** |
 | **Addresses Formally Proven Gap** | Source of Gap | No | No | **✅ Lorch et al. (USENIX RAID '24) [1]** |
 
@@ -67,12 +67,12 @@ When a flash write is interrupted mid-way on NOR flash memory, the sector is lef
    - Prevents block-swap, block-omission, and cross-version replay attacks.
 3. **Targeted Sector Retransmission**:
    - Bootloader scans flash on reboot following an interruption. Erased or mismatched blocks generate a compact `MSG_BLOCK_REQ` payload containing only missing block IDs.
-   - Reduces recovery bandwidth strictly to $\frac{k}{n} \times 100\%$.
+   - Reduces recovery bandwidth strictly to **k/n × 100%**.
 4. **Flash Erase-Bypass Optimization**:
    - During recovery, unaffected blocks are untouched. Retransmitted blocks skip redundant, time-consuming NOR flash sector erase operations (`HAL_FLASHEx_Erase`), speeding up flash programming.
 5. **Hardware Anti-Rollback Defense**:
    - Uses STM32 One-Time Programmable (OTP) monotonic counter fuses.
-   - Enforces a strict $\le$ version check (`metadata.version <= otp_floor`) to defeat same-version replay attacks (Lorch et al. Finding OPT1).
+   - Enforces a strict ≤ version check (`metadata.version <= otp_floor`) to defeat same-version replay attacks (Lorch et al. Finding OPT1).
 6. **Empirically Profiled on Bare-Metal Silicon**:
    - Zero-simulation evaluation on STM32F446RE at 180 MHz using ARM Cortex-M4 DWT (Data Watchpoint and Trace) cycle counting.
 
@@ -137,10 +137,10 @@ The OEM server builds a binary Merkle tree over the target firmware binary:
 2. **Internal Node Construction**:
    $$\text{Node}_j = \text{SHAKE-256}(\text{Child}_{\text{left}} \mathbin{\Vert} \text{Child}_{\text{right}})$$
 3. **Proof Verification**:
-   For a 128-block image (tree depth = 7), the proof consists of 7 sibling digests ($7 \times 32 = 224$ bytes). 
-   - Wire overhead per 4096-byte block: $\frac{224}{4096} \approx 5.46\%$.
-   - Framing overhead (7 bytes CRC/header): $0.16\%$.
-   - Total transmission overhead: **$< 5.7\%$**.
+   For a 128-block image (tree depth = 7), the proof consists of 7 sibling digests (7 × 32 = 224 bytes). 
+   - Wire overhead per 4096-byte block: 224 / 4096 ≈ 5.46%.
+   - Framing overhead (7 bytes CRC/header): 0.16%.
+   - Total transmission overhead: **< 5.7%**.
 
 ---
 
@@ -160,14 +160,14 @@ All communication between the OEM Server and the STM32F446RE occurs over a frame
 
 | Opcode | Identifier | Direction | Description |
 | :---: | :--- | :---: | :--- |
-| `0x01` | `MSG_OTA_START` | Server $\to$ MCU | Announces version, block count, Merkle root, tree depth |
-| `0x02` | `MSG_BLOCK` | Server $\to$ MCU | Carries Block ID (2B), raw 4 KB data, and sibling proofs |
-| `0x03` | `MSG_OTA_END` | Server $\to$ MCU | Signals all blocks transmitted |
-| `0x10` | `MSG_ACK` | MCU $\to$ Server | Confirms valid block receipt & flash commitment |
-| `0x11` | `MSG_NACK` | MCU $\to$ Server | Flags CRC failure, proof mismatch, or flash write error |
-| `0x12` | `MSG_OTA_COMPLETE`| MCU $\to$ Server | Confirms metadata sealed; MCU updates OTP & prepares boot|
-| `0x13` | `MSG_BLOCK_REQ` | MCU $\to$ Server | Recovery request: list of missing/corrupt block IDs |
-| `0x14` | `MSG_READY` | MCU $\to$ Server | Periodic heartbeat beacon broadcast at boot |
+| `0x01` | `MSG_OTA_START` | Server → MCU | Announces version, block count, Merkle root, tree depth |
+| `0x02` | `MSG_BLOCK` | Server → MCU | Carries Block ID (2B), raw 4 KB data, and sibling proofs |
+| `0x03` | `MSG_OTA_END` | Server → MCU | Signals all blocks transmitted |
+| `0x10` | `MSG_ACK` | MCU → Server | Confirms valid block receipt & flash commitment |
+| `0x11` | `MSG_NACK` | MCU → Server | Flags CRC failure, proof mismatch, or flash write error |
+| `0x12` | `MSG_OTA_COMPLETE`| MCU → Server | Confirms metadata sealed; MCU updates OTP & prepares boot|
+| `0x13` | `MSG_BLOCK_REQ` | MCU → Server | Recovery request: list of missing/corrupt block IDs |
+| `0x14` | `MSG_READY` | MCU → Server | Periodic heartbeat beacon broadcast at boot |
 
 ![Figure 2: Protocol State Machine](figures/figure2_protocol_state_machine.png)
 
@@ -181,16 +181,16 @@ The architecture defines three operating scenarios:
 1. Device boots into Tier 2, validates metadata, broadcasts `MSG_READY`.
 2. OEM Server sends `MSG_OTA_START`; Tier 2 validates version bounds and responds with `MSG_ACK`.
 3. Server streams blocks (`MSG_BLOCK`). For each block:
-   - Tier 2 computes CRC-16 ($\sim 80\,\mu\text{s}$).
-   - Computes SHAKE-256 leaf hash ($\sim 15.2\,\text{ms}$).
-   - Traverses 7-level proof against stored root ($\sim 3.4\,\text{ms}$).
+   - Tier 2 computes CRC-16 (~80 µs).
+   - Computes SHAKE-256 leaf hash (~15.2 ms).
+   - Traverses 7-level proof against stored root (~3.4 ms).
    - Writes block to physical flash and atomically sets `received_map[i]`.
    - Returns `MSG_ACK`.
 4. Server issues `MSG_OTA_END`; Tier 2 seals `status = 0x00000000`, increments OTP counter, sets `SCB->VTOR`, and executes Tier 3.
 
 ### Case B: Inline Channel Corruption (No Reboot)
 If physical channel noise flips bits during transit:
-- CRC-16 or Merkle proof check fails on the MCU ($\le 18.87\,\text{ms}$).
+- CRC-16 or Merkle proof check fails on the MCU (≤ 18.87 ms).
 - MCU immediately returns `MSG_NACK`.
 - Server re-queues that block and re-sends it within the same session.
 - Intact blocks already committed to flash remain valid; no re-flashing is needed.
@@ -218,7 +218,7 @@ Monotonic Counter Slot Array in OTP (512 Bytes Total)
 ```
 
 - **Rejection Rule**: If `new_version <= otp_current_version`, the update is rejected immediately.
-- **Why $\le$ rather than $<$**: Lorch et al. (Finding OPT1) demonstrated that same-version replay attacks allow adversaries to re-flash a known vulnerable firmware build that has the same version tag. Enforcing strictly greater-than ($>$) eliminates this attack surface.
+- **Why ≤ rather than <**: Lorch et al. (Finding OPT1) demonstrated that same-version replay attacks allow adversaries to re-flash a known vulnerable firmware build that has the same version tag. Enforcing strictly greater-than (>) eliminates this attack surface.
 - **Commit Safety**: The OTP fuse is burned **only after** `MSG_OTA_COMPLETE` is reached. An interrupted update will never burn the fuse prematurely.
 
 ---
@@ -232,21 +232,21 @@ All measurements were taken on a physical **STM32F446RE Nucleo-64** board clocke
 
 | Metric | 64 Blocks (256 KB) | 128 Blocks (512 KB) | 256 Blocks (1 MB) |
 | :--- | :---: | :---: | :---: |
-| **Tree Build Time** | $2.68 \pm 0.14\,\text{ms}$ | $3.16 \pm 0.18\,\text{ms}$ | $4.69 \pm 0.22\,\text{ms}$ |
+| **Tree Build Time** | 2.68 ± 0.14 ms | 3.16 ± 0.18 ms | 4.69 ± 0.22 ms |
 | **Proof Size per Block** | 192 B (depth 6) | 224 B (depth 7) | 256 B (depth 8) |
 | **Total Proof Overhead** | 12.0 KB (4.7%) | 28.0 KB (5.5%) | 64.0 KB (6.2%) |
-| **Leaf Hash Latency** | $13.01 \pm 2.74\,\mu\text{s}$ | $13.01 \pm 2.74\,\mu\text{s}$ | $13.01 \pm 2.74\,\mu\text{s}$ |
+| **Leaf Hash Latency** | 13.01 ± 2.74 µs | 13.01 ± 2.74 µs | 13.01 ± 2.74 µs |
 
 ### 2. On-MCU Cryptographic Latency (STM32F446RE @ 180 MHz)
 *Measured via `DWT->CYCCNT`.*
 
 | Operation | Clock Cycles | Execution Time | Notes |
 | :--- | :---: | :---: | :--- |
-| **Leaf Hash (4 KB + 6B meta)** | 2,744,460 | **$15.247 \pm 0.003\,\text{ms}$** | Software SHAKE-256 (XKCP compact) |
-| **Proof Verify (depth = 7)** | 620,100 | **$3.445 \pm 0.008\,\text{ms}$** | 7 SHAKE-256 parent node hashes |
-| **Proof Verify (depth = 8)** | 708,660 | **$3.937 \pm 0.009\,\text{ms}$** | 8 SHAKE-256 parent node hashes |
-| **Full Flash Scan (128 blocks)** | 351,308,000 | **$1,951.7 \pm 0.4\,\text{ms}$** | 128 sequential leaf evaluations |
-| **RAM Footprint during Verify**| — | **$\sim 4,550\,\text{Bytes}$** | Measured via stack-painting (`0xDE`) |
+| **Leaf Hash (4 KB + 6B meta)** | 2,744,460 | **15.247 ± 0.003 ms** | Software SHAKE-256 (XKCP compact) |
+| **Proof Verify (depth = 7)** | 620,100 | **3.445 ± 0.008 ms** | 7 SHAKE-256 parent node hashes |
+| **Proof Verify (depth = 8)** | 708,660 | **3.937 ± 0.009 ms** | 8 SHAKE-256 parent node hashes |
+| **Full Flash Scan (128 blocks)** | 351,308,000 | **1,951.7 ± 0.4 ms** | 128 sequential leaf evaluations |
+| **RAM Footprint during Verify**| — | **~4,550 Bytes** | Measured via stack-painting (`0xDE`) |
 | **False Positive / Negative Rate**| — | **0.0% / 0.0%** | Over 3,840 clean & 360 corrupted blocks |
 
 ![Figure 5: Fault Detection Latency Breakdown](figures/figure5_fault_detection_latency.png)
@@ -256,17 +256,17 @@ All measurements were taken on a physical **STM32F446RE Nucleo-64** board clocke
 
 | Pipeline Parameter | Measured Value |
 | :--- | :--- |
-| **Total OTA Transfer Duration** | **$65.3\,\text{s}$** |
-| **Base Per-Block Round-Trip Time (RTT)** | $\sim 440\text{--}445\,\text{ms}$ (UART transfer: $377\,\text{ms}$, MCU verify: $18.8\,\text{ms}$) |
-| **Effective Throughput** | $7.84\,\text{KB/s}$ |
-| **Flash Erase Spike (16 KB Sector 3)** | $\sim 625\,\text{ms}$ (at Block 0, 4) |
-| **Flash Erase Spike (64 KB Sector 4)** | $\sim 962\,\text{ms}$ (at Block 8) |
-| **Flash Erase Spike (128 KB Sectors 5–7)** | $\sim 1,340\text{--}1,475\,\text{ms}$ (at Block 24, 56, 88) |
+| **Total OTA Transfer Duration** | **65.3 s** |
+| **Base Per-Block Round-Trip Time (RTT)** | ~440–445 ms (UART transfer: 377 ms, MCU verify: 18.8 ms) |
+| **Effective Throughput** | 7.84 KB/s |
+| **Flash Erase Spike (16 KB Sector 3)** | ~625 ms (at Block 0, 4) |
+| **Flash Erase Spike (64 KB Sector 4)** | ~962 ms (at Block 8) |
+| **Flash Erase Spike (128 KB Sectors 5–7)** | ~1,340–1,475 ms (at Block 24, 56, 88) |
 
 ### 4. Partial Recovery Bandwidth Savings (Key Result)
-*Demonstrating recovery cost for $k$ corrupted blocks in a 128-block image.*
+*Demonstrating recovery cost for k corrupted blocks in a 128-block image.*
 
-| Corrupted Blocks ($k$) | Retransmitted Data | Recovery Bandwidth | Recovery Time | Full Re-download Time | Bandwidth Saved |
+| Corrupted Blocks (k) | Retransmitted Data | Recovery Bandwidth | Recovery Time | Full Re-download Time | Bandwidth Saved |
 | :---: | :---: | :---: | :---: | :---: | :---: |
 | **0 (Clean)** | 0 KB | 0.0% | 0.0 s | 65.3 s | **100.0%** |
 | **1** | 4.22 KB | 0.78% | ~0.44 s | 65.3 s | **99.2%** |
@@ -279,18 +279,18 @@ All measurements were taken on a physical **STM32F446RE Nucleo-64** board clocke
 | **64** | 270.13 KB | 50.00% | ~28.29 s | 65.3 s | **50.0%** |
 | **128 (All)** | 540.25 KB | 100.00% | ~56.58 s | 65.3 s | **0.0%** |
 
-*Note: In the worst-case scenario ($k=128$), recovery is still ~8.7 seconds faster than a fresh download because flash sectors are already erased and erase cycles are bypassed.*
+*Note: In the worst-case scenario (k=128), recovery is still ~8.7 seconds faster than a fresh download because flash sectors are already erased and erase cycles are bypassed.*
 
 ### 5. Verified Boot-Time Breakdown
 
 | Bootloader Stage | Measured Latency | Function |
 | :--- | :---: | :--- |
-| **Tier 1: Image SHA-256 + ECDSA Verification** | $\sim 60\,\text{ms}$ | Validates Sector 1 binary before jump |
-| **Tier 2: Read Metadata & Status Check** | $< 3\,\text{ms}$ | Validates `0xDEADBEEF` and flags |
-| **Tier 2: Monotonic OTP Version Bound Check**| $< 1\,\text{ms}$ | Hardware fuse counter evaluation |
-| **Tier 2: Full Flash Merkle Scan (88 Blocks)** | $\sim 1,341\,\text{ms}$ | Hashes live flash against leaf table |
-| **Tier 2: Stack Setup, VTOR Shift & Jump** | $< 1\,\text{ms}$ | Sets `SCB->VTOR` to `0x08008000` |
-| **Total Verified Boot Time** | **$\mathbf{\sim 1,405\,\text{ms}}$** | **$\mathbf{< 2\,\text{seconds}}$ total verified boot** |
+| **Tier 1: Image SHA-256 + ECDSA Verification** | ~60 ms | Validates Sector 1 binary before jump |
+| **Tier 2: Read Metadata & Status Check** | < 3 ms | Validates `0xDEADBEEF` and flags |
+| **Tier 2: Monotonic OTP Version Bound Check**| < 1 ms | Hardware fuse counter evaluation |
+| **Tier 2: Full Flash Merkle Scan (88 Blocks)** | ~1,341 ms | Hashes live flash against leaf table |
+| **Tier 2: Stack Setup, VTOR Shift & Jump** | < 1 ms | Sets `SCB->VTOR` to `0x08008000` |
+| **Total Verified Boot Time** | **~1,405 ms** | **< 2 seconds total verified boot** |
 
 ![Figure 4: Boot Time Breakdown](figures/figure4_boot_time_breakdown.png)
 
