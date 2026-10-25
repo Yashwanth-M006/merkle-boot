@@ -3,6 +3,7 @@
 [![Target: STM32F446RE](https://img.shields.io/badge/Hardware-STM32F446RE%20(Cortex--M4F%20%40%20180MHz)-blue.svg)](#hardware-platform)
 [![Cryptography: SHAKE-256](https://img.shields.io/badge/Crypto-NIST%20FIPS%20202%20(SHAKE--256)-green.svg)](#the-shake-256-merkle-tree)
 [![Protocol: Block-Level OTA](https://img.shields.io/badge/Protocol-Framed%20UART%20%2F%20CRC--16-orange.svg)](#ota-protocol-specification)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Status: Research Implementation](https://img.shields.io/badge/Status-Research%20Implementation-purple.svg)](#key-features--contributions)
 
 This repository contains the complete firmware, server toolchain, evaluation suites, and empirical dataset for a **three-tier cryptographic bootloader architecture** deployed on bare-metal ARM Cortex-M4 microcontrollers. 
