@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+
+# Eclipse / STM32CubeIDE build output
+Debug/
+Release/
+workspace/
+.metadata/
+*.launch
+*.d
+*.su
+*.cyclo
+*.map
+*.list
+*.o
+*.a
+
+# Temporary build binaries
+OEM Server/dummy.bin
+OEM Server/update.ota
+
+# Research Papers & Draft Manuscripts (maintained locally for submission)
+paper.md
+paper_final.md
+paper_reviewed.md
+results.md
+merkle_ota_measurement_tables.md
+
+# Scratch Patch Scripts
+clean_patch.py
+patch_firmware.py
+patch_main.py
+
+# OS specific files
+.DS_Store
+Thumbs.db
+ehthumbs.db
+[Dd]esktop.ini
