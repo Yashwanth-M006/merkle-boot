@@ -63,7 +63,9 @@ When a flash write is interrupted mid-way on NOR flash memory, the sector is lef
    - **Tier 3 (Application Region)**: Up to 352–480 KB (Sectors 2–7).
 2. **Block-Level Bound SHAKE-256 Merkle Tree**:
    - Each 4 KB leaf binds both block index and version:
-     $$\text{Leaf}_i = \text{SHAKE-256}(\text{Block}_i \mathbin{\Vert} \text{LE16}(i) \mathbin{\Vert} \text{LE32}(\text{version}))$$
+     ```text
+     Leaf_i = SHAKE-256(Block_i || LE16(block_id) || LE32(version))
+     ```
    - Prevents block-swap, block-omission, and cross-version replay attacks.
 3. **Targeted Sector Retransmission**:
    - Bootloader scans flash on reboot following an interruption. Erased or mismatched blocks generate a compact `MSG_BLOCK_REQ` payload containing only missing block IDs.
@@ -133,9 +135,13 @@ The OEM server builds a binary Merkle tree over the target firmware binary:
 ```
 
 1. **Leaf Construction**:
-   $$\text{Leaf}_i = \text{SHAKE-256}(\text{Block}_i \mathbin{\Vert} \text{LE16}(i) \mathbin{\Vert} \text{LE32}(\text{version}))$$
+   ```text
+   Leaf_i = SHAKE-256(Block_i || LE16(block_id) || LE32(version))
+   ```
 2. **Internal Node Construction**:
-   $$\text{Node}_j = \text{SHAKE-256}(\text{Child}_{\text{left}} \mathbin{\Vert} \text{Child}_{\text{right}})$$
+   ```text
+   Node_j = SHAKE-256(Child_left || Child_right)
+   ```
 3. **Proof Verification**:
    For a 128-block image (tree depth = 7), the proof consists of 7 sibling digests (7 × 32 = 224 bytes). 
    - Wire overhead per 4096-byte block: 224 / 4096 ≈ 5.46%.
